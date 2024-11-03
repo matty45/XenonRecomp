@@ -427,7 +427,7 @@ bool Recompiler::Recompile(
         break;
 
     case PPC_INST_ADDC:
-        println("\t{}.ca = {}.u32 >= ~{}.u32;", xer(), r(insn.operands[2]), r(insn.operands[1]));
+        println("\t{}.ca = {}.u32 > ~{}.u32;", xer(), r(insn.operands[2]), r(insn.operands[1]));
         println("\t{}.u64 = {}.u64 + {}.u64;", r(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]));
         if (strchr(insn.opcode->name, '.'))
             println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
@@ -799,10 +799,9 @@ bool Recompiler::Recompile(
         break;
 
     case PPC_INST_EQV:
-        println("\t{}.u64 = ~({}.u32 ^ {}.u32);", r(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]));
+        println("\t{}.u64 = ~({}.u64 ^ {}.u64);", r(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]));
         if (strchr(insn.opcode->name, '.'))
             println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
-
         break;
 
     case PPC_INST_EXTSB:
@@ -2026,7 +2025,7 @@ bool Recompiler::Recompile(
         break;
 
     case PPC_INST_VMINSH:
-        println("\t_mm_store_si128((__m128i*){}.u16, _mm_max_epi16(_mm_load_si128((__m128i*){}.u16), _mm_load_si128((__m128i*){}.u16)));", v(insn.operands[0]), v(insn.operands[1]), v(insn.operands[2]));
+        println("\t_mm_store_si128((__m128i*){}.u16, _mm_min_epi16(_mm_load_si128((__m128i*){}.u16), _mm_load_si128((__m128i*){}.u16)));", v(insn.operands[0]), v(insn.operands[1]), v(insn.operands[2]));
         break;
 
     case PPC_INST_VMINFP:
@@ -2211,7 +2210,7 @@ bool Recompiler::Recompile(
     case PPC_INST_VSLH:
         // TODO: vectorize
         for (size_t i = 0; i < 8; i++)
-            println("\t{}.u16[{}] = {}.u16[{}] << ({}.u8[{}] & 0xF);", v(insn.operands[0]), i, v(insn.operands[1]), i, v(insn.operands[2]), i);
+            println("\t{}.u16[{}] = {}.u16[{}] << ({}.u8[{}] & 0xF);", v(insn.operands[0]), i, v(insn.operands[1]), i, v(insn.operands[2]), i * 2);
         break;
 
     case PPC_INST_VSLDOI:
@@ -2743,7 +2742,7 @@ void Recompiler::SaveCurrentOutData(const std::string_view& name)
         bool shouldWrite = true;
 
         // Check if an identical file already exists first to not trigger recompilation
-        std::string filePath = std::format("{}/{}/{}", config.directoryPath, config.outDirectoryPath, name.empty() ? cppName : name);
+        std::string filePath = std::format("{}{}/{}", config.directoryPath, config.outDirectoryPath, name.empty() ? cppName : name);
         FILE* f = fopen(filePath.c_str(), "rb");
         if (f)
         {
