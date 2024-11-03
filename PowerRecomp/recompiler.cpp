@@ -426,9 +426,24 @@ bool Recompiler::Recompile(
             println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
         break;
 
+    case PPC_INST_ADDC:
+        println("\t{}.ca = {}.u32 >= ~{}.u32;", xer(), r(insn.operands[2]), r(insn.operands[1]));
+        println("\t{}.u64 = {}.u64 + {}.u64;", r(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]));
+        if (strchr(insn.opcode->name, '.'))
+            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
+        break;
+
     case PPC_INST_ADDE:
         println("\t{}.u8 = ({}.u32 + {}.u32 < {}.u32) | ({}.u32 + {}.u32 + {}.ca < {}.ca);", temp(), r(insn.operands[1]), r(insn.operands[2]), r(insn.operands[1]), r(insn.operands[1]), r(insn.operands[2]), xer(), xer());
         println("\t{}.u64 = {}.u64 + {}.u64 + {}.ca;", r(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]), xer());
+        println("\t{}.ca = {}.u8;", xer(), temp());
+        if (strchr(insn.opcode->name, '.'))
+            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
+        break;
+
+    case PPC_INST_ADDME:
+        println("\t{}.u8 = ({}.u32 - 1 < {}.u32) | ({}.u32 - 1 + {}.ca < {}.ca);", temp(), r(insn.operands[1]), r(insn.operands[1]), r(insn.operands[1]), xer(), xer());
+        println("\t{}.u64 = {}.u64 - 1 + {}.ca;", r(insn.operands[0]), r(insn.operands[1]), xer());
         println("\t{}.ca = {}.u8;", xer(), temp());
         if (strchr(insn.opcode->name, '.'))
             println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
@@ -547,6 +562,14 @@ bool Recompiler::Recompile(
         println("\tif ({}.u32 == 0) goto loc_{:X};", ctr(), insn.operands[0]);
         break;
 
+    case PPC_INST_BDZF:
+    {
+        constexpr std::string_view fields[] = { "lt", "gt", "eq", "so" };
+        println("\t--{}.u64;", ctr());
+        println("\tif ({}.u32 == 0 && !{}.{}) goto loc_{:X};", ctr(), cr(insn.operands[0] / 4), fields[insn.operands[0] % 4], insn.operands[1]);
+        break;
+    }
+
     case PPC_INST_BDZLR:
         println("\t--{}.u64;", ctr());
         println("\tif ({}.u32 == 0) return;", ctr(), insn.operands[0]);
@@ -558,10 +581,20 @@ bool Recompiler::Recompile(
         break;
 
     case PPC_INST_BDNZF:
-        // NOTE: assuming eq here as a shortcut because all the instructions in the game do that
+    {
+        constexpr std::string_view fields[] = { "lt", "gt", "eq", "so" };
         println("\t--{}.u64;", ctr());
-        println("\tif ({}.u32 != 0 && !{}.eq) goto loc_{:X};", ctr(), cr(insn.operands[0] / 4), insn.operands[1]);
+        println("\tif ({}.u32 != 0 && !{}.{}) goto loc_{:X};", ctr(), cr(insn.operands[0] / 4), fields[insn.operands[0] % 4], insn.operands[1]);
         break;
+    }
+
+    case PPC_INST_BDNZT:
+    {
+        constexpr std::string_view fields[] = { "lt", "gt", "eq", "so" };
+        println("\t--{}.u64;", ctr());
+        println("\tif ({}.u32 != 0 && {}.{}) goto loc_{:X};", ctr(), cr(insn.operands[0] / 4), fields[insn.operands[0] % 4], insn.operands[1]);
+        break;
+    }
 
     case PPC_INST_BEQ:
         printConditionalBranch(false, "eq");
@@ -691,6 +724,20 @@ bool Recompiler::Recompile(
         println("\t{}.u64 = __lzcnt({}.u32);", r(insn.operands[0]), r(insn.operands[1]));
         break;
 
+    case PPC_INST_CROR:
+    {
+        constexpr std::string_view fields[] = { "lt", "gt", "eq", "so" };
+        println("\t{}.{} = {}.{} | {}.{};", cr(insn.operands[0] / 4), fields[insn.operands[0] % 4], cr(insn.operands[1] / 4), fields[insn.operands[1] % 4], cr(insn.operands[2] / 4), fields[insn.operands[2] % 4]);
+        break;
+    }
+
+    case PPC_INST_CRORC:
+    {
+        constexpr std::string_view fields[] = { "lt", "gt", "eq", "so" };
+        println("\t{}.{} = {}.{} | (~{}.{} & 1);", cr(insn.operands[0] / 4), fields[insn.operands[0] % 4], cr(insn.operands[1] / 4), fields[insn.operands[1] % 4], cr(insn.operands[2] / 4), fields[insn.operands[2] % 4]);
+        break;
+    }
+
     case PPC_INST_DB16CYC:
         // no op
         break;
@@ -749,6 +796,13 @@ bool Recompiler::Recompile(
 
     case PPC_INST_EIEIO:
         // no op
+        break;
+
+    case PPC_INST_EQV:
+        println("\t{}.u64 = ~({}.u32 ^ {}.u32);", r(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]));
+        if (strchr(insn.opcode->name, '.'))
+            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
+
         break;
 
     case PPC_INST_EXTSB:
@@ -1713,6 +1767,14 @@ bool Recompiler::Recompile(
     case PPC_INST_SUBFE:
         println("\t{}.u8 = (~{}.u32 + {}.u32 < ~{}.u32) | (~{}.u32 + {}.u32 + {}.ca < {}.ca);", temp(), r(insn.operands[1]), r(insn.operands[2]), r(insn.operands[1]), r(insn.operands[1]), r(insn.operands[2]), xer(), xer());
         println("\t{}.u64 = ~{}.u64 + {}.u64 + {}.ca;", r(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]), xer());
+        println("\t{}.ca = {}.u8;", xer(), temp());
+        if (strchr(insn.opcode->name, '.'))
+            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
+        break;
+
+    case PPC_INST_SUBFZE:
+        println("\t{}.u8 = (~{}.u32 < ~{}.u32) | (~{}.u32 + {}.ca < {}.ca);", temp(), r(insn.operands[1]), r(insn.operands[1]), r(insn.operands[1]), xer(), xer());
+        println("\t{}.u64 = ~{}.u64 + {}.ca;", r(insn.operands[0]), r(insn.operands[1]), xer());
         println("\t{}.ca = {}.u8;", xer(), temp());
         if (strchr(insn.opcode->name, '.'))
             println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
