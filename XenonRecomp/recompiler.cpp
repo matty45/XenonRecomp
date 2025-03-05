@@ -1228,7 +1228,9 @@ bool Recompiler::Recompile(
     case PPC_INST_LVEWX:
     case PPC_INST_LVEWX128:
     case PPC_INST_LVX:
+    case PPC_INST_LVXL:
     case PPC_INST_LVX128:
+    case PPC_INST_LVXL128:
     case PPC_INST_LVEHX:
         // NOTE: for endian swapping, we reverse the whole vector instead of individual elements.
         // this is accounted for in every instruction (eg. dp3 sums yzw instead of xyz)
@@ -1400,8 +1402,22 @@ bool Recompiler::Recompile(
         println("\t{}.ca = ({}.u64 & 0x20000000) != 0;", xer(), r(insn.operands[0]));
         break;
 
+    case PPC_INST_MULHD:
+        println("\t{}.u64 = (int64_t({}.s64) * int64_t({}.s64)) >> 64;", r(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]));
+        if (strchr(insn.opcode->name, '.'))
+            println("\t{}.compare<int64_t>({}.s64, 0, {});", cr(0), r(insn.operands[0]), xer());
+        break;
+        
+    case PPC_INST_MULHDU:
+        println("\t{}.u64 = (uint64_t({}.u64) * uint64_t({}.u64)) >> 64;", r(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]));
+        if (strchr(insn.opcode->name, '.'))
+            println("\t{}.compare<int64_t>({}.s64, 0, {});", cr(0), r(insn.operands[0]), xer());
+        break;
+
     case PPC_INST_MULHW:
         println("\t{}.s64 = (int64_t({}.s32) * int64_t({}.s32)) >> 32;", r(insn.operands[0]), r(insn.operands[1]), r(insn.operands[2]));
+        if (strchr(insn.opcode->name, '.'))
+            println("\t{}.compare<int32_t>({}.s32, 0, {});", cr(0), r(insn.operands[0]), xer());
         break;
 
     case PPC_INST_MULHWU:
@@ -1754,7 +1770,9 @@ bool Recompiler::Recompile(
         break;
 
     case PPC_INST_STVLX:
+    case PPC_INST_STVLXL:
     case PPC_INST_STVLX128:
+    case PPC_INST_STVLXL128:
         // TODO: vectorize
         // NOTE: accounting for the full vector reversal here
         print("\t{} = ", ea());
@@ -1767,7 +1785,9 @@ bool Recompiler::Recompile(
         break;
 
     case PPC_INST_STVRX:
+    case PPC_INST_STVRXL:
     case PPC_INST_STVRX128:
+    case PPC_INST_STVRXL128:
         // TODO: vectorize
         // NOTE: accounting for the full vector reversal here
         print("\t{} = ", ea());
@@ -1936,6 +1956,7 @@ bool Recompiler::Recompile(
         println("\t_mm_store_si128((__m128i*){}.u8, _mm_and_si128(_mm_load_si128((__m128i*){}.u8), _mm_load_si128((__m128i*){}.u8)));", v(insn.operands[0]), v(insn.operands[1]), v(insn.operands[2]));
         break;
 
+    case PPC_INST_VANDC:
     case PPC_INST_VANDC128:
         println("\t_mm_store_si128((__m128i*){}.u8, _mm_andnot_si128(_mm_load_si128((__m128i*){}.u8), _mm_load_si128((__m128i*){}.u8)));", v(insn.operands[0]), v(insn.operands[2]), v(insn.operands[1]));
         break;
@@ -2175,6 +2196,16 @@ bool Recompiler::Recompile(
     case PPC_INST_VNMSUBFP128:
         printSetFlushMode(true);
         println("\t_mm_store_ps({}.f32, _mm_xor_ps(_mm_sub_ps(_mm_mul_ps(_mm_load_ps({}.f32), _mm_load_ps({}.f32)), _mm_load_ps({}.f32)), _mm_castsi128_ps(_mm_set1_epi32(int(0x80000000)))));", v(insn.operands[0]), v(insn.operands[1]), v(insn.operands[2]), v(insn.operands[3]));
+        break;
+
+    case PPC_INST_VNOR:
+        print("\t_mm_store_si128((__m128i*){}.u8, ", v(insn.operands[0]));
+
+        if (insn.operands[1] != insn.operands[2])
+            println("_mm_andnot_si128(_mm_or_si128(_mm_load_si128((__m128i*){}.u8), _mm_load_si128((__m128i*){}.u8)), _mm_set1_epi8(0xFF));", v(insn.operands[1]), v(insn.operands[2]));
+        else
+            println("_mm_setzero_si128());");
+
         break;
 
     case PPC_INST_VOR:
