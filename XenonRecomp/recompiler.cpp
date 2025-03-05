@@ -2202,7 +2202,7 @@ bool Recompiler::Recompile(
         print("\t_mm_store_si128((__m128i*){}.u8, ", v(insn.operands[0]));
 
         if (insn.operands[1] != insn.operands[2])
-            println("_mm_andnot_si128(_mm_or_si128(_mm_load_si128((__m128i*){}.u8), _mm_load_si128((__m128i*){}.u8)), _mm_set1_epi8(0xFF));", v(insn.operands[1]), v(insn.operands[2]));
+            println("_mm_andnot_si128(_mm_or_si128(_mm_load_si128((__m128i*){}.u8), _mm_load_si128((__m128i*){}.u8)), _mm_set1_epi8(0xFF)));", v(insn.operands[1]), v(insn.operands[2]));
         else
             println("_mm_setzero_si128());");
 
