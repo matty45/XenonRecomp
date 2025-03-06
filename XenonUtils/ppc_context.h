@@ -707,7 +707,6 @@ inline simde__m128i simde_mm_vctuxs(simde__m128 src1)
     return simde_mm_or_si128(dest, xmm0);
 }
 
-inline simde__m128i simde_mm_vsr(simde__m128i a, simde__m128i b)
 #if defined(__aarch64__) || defined(_M_ARM64)
 inline uint64_t __rdtsc()
 {
