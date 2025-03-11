@@ -770,6 +770,14 @@ bool Recompiler::Recompile(
         println("\tif (!{}.eq) return;", cr(insn.operands[0]));
         break;
 
+    case PPC_INST_BSO:
+        // no op
+        break;
+
+    case PPC_INST_BNS:
+        // no op
+        break;
+
     case PPC_INST_CCTPL:
         // no op
         break;
